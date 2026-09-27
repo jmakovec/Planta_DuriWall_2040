@@ -48,6 +48,7 @@ body.nolabels .tag{display:none;}
 #card dl{margin:7px 0 0;display:grid;grid-template-columns:auto 1fr;gap:2px 9px;font:400 10.5px/1.35 var(--mono);font-variant-numeric:tabular-nums;}
 #card dt{color:var(--muted);}
 #card dd{margin:0;color:var(--ink);}
+#card .note{margin:8px 0 0;padding:7px 9px;background:rgba(216,50,42,.07);border-left:2px solid var(--red);font:500 11.5px/1.4 var(--display);color:var(--ink);text-wrap:pretty;}
 #card .now{margin-top:8px;padding-top:7px;border-top:1px dashed var(--line);font:500 12px/1.3 var(--display);display:flex;gap:7px;align-items:baseline;}
 #card .now b{font:500 10px/1 var(--mono);color:#fff;background:var(--orange);padding:3px 5px;border-radius:2px;letter-spacing:.04em;}
 #card.bn{border-top-color:var(--red);}
@@ -135,6 +136,7 @@ body.clean .transport:hover{opacity:1;pointer-events:auto;}
       <h2 id="cTitle">Corte de placa cementicia</h2>
       <div class="machine" id="cMachine">Kimla BPF2030</div>
       <dl id="cData"></dl>
+      <p class="note" id="cNote" hidden></p>
       <div class="now"><b id="cBadge">AHORA</b><span id="cNow">—</span></div>
     </div>
   </div>
@@ -152,9 +154,6 @@ body.clean .transport:hover{opacity:1;pointer-events:auto;}
       <select class="sel" id="speed" aria-label="Velocidad">
         <option value="0.5">0,5×</option><option value="1" selected>1×</option><option value="1.5">1,5×</option><option value="2">2×</option>
       </select>
-      <label class="bnsel hide-sm" for="bnSel">Cuello
-        <select class="sel" id="bnSel"></select>
-      </label>
       <button class="btn" id="free" aria-pressed="false">Vista libre</button>
       <button class="btn hide-sm" id="lbl" aria-pressed="true">Etiquetas</button>
       <button class="btn hide-sm" id="clean" aria-pressed="false" title="Oculta la interfaz para grabar la pantalla (tecla H)">Grabar</button>
@@ -1679,8 +1678,9 @@ function updateReveal(t) {
 /* ============================================================
    CUELLO DE BOTELLA (resaltado rojo)
    ============================================================ */
-const BN = { key: 'cnc', shell: null, floor: null, light: null };
-try { const s = localStorage.getItem('duriwall-bn'); if (s && MACH[s]) BN.key = s; } catch (e) {}
+// Cuello de botella definido en la capacidad nominal por estación: fresadora de EPS 30 mm
+const BN = { key: 'fres', shell: null, floor: null, light: null };
+const BN_NOTE = 'De esta forma, se definió un ciclo coordinado de producción que permite alcanzar una capacidad nominal de aproximadamente 196 bloques por hora.';
 function setBottleneck(key) {
   const prev = MACH[BN.key];
   if (prev) prev.bodies.forEach(m => { if (m.userData.orig) m.material = m.userData.orig; });
@@ -1695,7 +1695,6 @@ function setBottleneck(key) {
   BN.anchor = new THREE.Vector3((x0 + x1) / 2, FL + h + 0.35, (z0 + z1) / 2);
   BN.low = new THREE.Vector3((x0 + x1) / 2, FL + 0.05, z1 + 0.5);
   document.getElementById('btagName').textContent = mc.short;
-  try { localStorage.setItem('duriwall-bn', key); } catch (e) {}
   buildShots();
 }
 function updateBN(t) {
@@ -1830,7 +1829,8 @@ function fillCard(ch) {
   $('cTitle').textContent = c.title;
   const mc = MACH[BN.key];
   $('cMachine').textContent = ch.id === 'c5' ? mc.name : c.machine;
-  const data = ch.id === 'c5' ? [['Estación', mc.short], ['Efecto', 'fija el takt de la línea'], ['Referencia', 'capacidad nominal por estación']] : c.data;
+  const data = ch.id === 'c5' ? [['Estación', 'Fresadora Kimla · EPS 30 mm'], ['Capacidad', '≈ 196 bloques por hora'], ['Efecto', 'fija el ritmo de toda la línea']] : c.data;
+  const note = $('cNote'); note.hidden = ch.id !== 'c5'; note.textContent = ch.id === 'c5' ? BN_NOTE : '';
   $('cData').innerHTML = data.slice(0, 3).map(([a, b]) => `<dt>${a}</dt><dd>${b}</dd>`).join('');
   cardEl.classList.toggle('bn', ch.id === 'c5');
 }
@@ -1863,9 +1863,6 @@ CH.forEach(ch => {
   chipsEl.appendChild(b); ch.el = b;
   const tk = document.createElement('span'); tk.style.left = (ch.t / TOTAL * 100) + '%'; if (ch.id === 'c5') tk.className = 'bn'; ticksEl.appendChild(tk);
 });
-const bnSel = $('bnSel');
-Object.values(MACH).forEach(m => { const o = document.createElement('option'); o.value = m.key; o.textContent = m.short; bnSel.appendChild(o); });
-bnSel.addEventListener('change', () => { setBottleneck(bnSel.value); if (cardKey === 'c5') cardKey = null; });
 
 let T = 0, playing = true, speed = 1, ended = false, scrubbing = false;
 if (window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches) playing = false;
@@ -1974,7 +1971,6 @@ function placeBtag(t, card) {
    BUCLE
    ============================================================ */
 setBottleneck(BN.key);
-bnSel.value = BN.key;
 resize();
 let last = performance.now();
 const timeEl = $('time');
